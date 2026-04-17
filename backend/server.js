@@ -6,7 +6,12 @@ const Groq = require("groq-sdk");
 
 const app = express();
 
-// ✅ Init Groq
+// ✅ Init Groq safely
+if (!process.env.GROQ_API_KEY) {
+  console.error("❌ GROQ_API_KEY missing in environment variables");
+  process.exit(1);
+}
+
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
@@ -15,14 +20,16 @@ const groq = new Groq({
 app.use(cors());
 app.use(express.json());
 
-// ✅ Test route
+// ==============================
+// ✅ ROOT ROUTE (IMPORTANT)
+// ==============================
+
 app.get("/", (req, res) => {
   res.send("CuraLink API running...");
 });
 
-
 // ==============================
-// 🔥 SUMMARY API (MAIN PART)
+// 🔥 SUMMARY API
 // ==============================
 
 app.post("/api/summary", async (req, res) => {
@@ -36,7 +43,6 @@ app.post("/api/summary", async (req, res) => {
       });
     }
 
-    // 👉 Call Groq
     const response = await groq.chat.completions.create({
       messages: [
         {
@@ -69,16 +75,14 @@ Risks:`,
   }
 });
 
-
 // ==============================
-// (OPTIONAL) EXISTING ROUTES
+// 📚 OTHER ROUTES
 // ==============================
 
 app.use("/api/research", require("./routes/research"));
 
-
 // ==============================
-// ❌ 404 HANDLER
+// ❌ 404 HANDLER (ALWAYS LAST)
 // ==============================
 
 app.use((req, res) => {
@@ -87,7 +91,6 @@ app.use((req, res) => {
     error: "Route not found",
   });
 });
-
 
 // ==============================
 // ❌ GLOBAL ERROR HANDLER
@@ -102,12 +105,11 @@ app.use((err, req, res, next) => {
   });
 });
 
-
 // ==============================
 // 🚀 START SERVER
 // ==============================
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
