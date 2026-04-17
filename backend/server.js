@@ -6,32 +6,38 @@ const Groq = require("groq-sdk");
 
 const app = express();
 
-// ✅ Init Groq safely
+// ==============================
+// ✅ ENV CHECK (IMPORTANT)
+// ==============================
 if (!process.env.GROQ_API_KEY) {
-  console.error("❌ GROQ_API_KEY missing in environment variables");
-  process.exit(1);
+  console.error("❌ GROQ_API_KEY missing");
+} else {
+  console.log("✅ GROQ_API_KEY loaded");
 }
 
+// ==============================
+// ✅ INIT GROQ
+// ==============================
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-// ✅ Middlewares
+// ==============================
+// ✅ MIDDLEWARES
+// ==============================
 app.use(cors());
 app.use(express.json());
 
 // ==============================
-// ✅ ROOT ROUTE (IMPORTANT)
+// ✅ ROOT ROUTE
 // ==============================
-
 app.get("/", (req, res) => {
   res.send("CuraLink API running...");
 });
 
 // ==============================
-// 🔥 SUMMARY API
+// 🔥 SUMMARY API (FIXED)
 // ==============================
-
 app.post("/api/summary", async (req, res) => {
   try {
     const { query } = req.body;
@@ -43,22 +49,32 @@ app.post("/api/summary", async (req, res) => {
       });
     }
 
+    console.log("👉 Query:", query);
+
+    // 🔥 CALL GROQ
     const response = await groq.chat.completions.create({
+      model: "llama3-8b-8192",
       messages: [
         {
           role: "user",
-          content: `Give a medical summary of ${query} in this format:
-
-Overview:
-Key Findings:
-Treatment:
-Risks:`,
+          content: `Give a short, clear medical summary of ${query} with:
+Overview
+Key Findings
+Treatment
+Risks`,
         },
       ],
-      model: "llama3-8b-8192",
     });
 
-    const text = response.choices[0].message.content;
+    // 🔥 SAFE EXTRACTION (VERY IMPORTANT FIX)
+    const text =
+      response?.choices?.[0]?.message?.content || null;
+
+    if (!text) {
+      throw new Error("Empty response from Groq");
+    }
+
+    console.log("✅ Summary generated");
 
     res.json({
       success: true,
@@ -66,25 +82,23 @@ Risks:`,
     });
 
   } catch (error) {
-    console.error("❌ Summary Error:", error);
+    console.error("❌ FULL ERROR:", error.message);
 
     res.status(500).json({
       success: false,
-      error: "Failed to generate summary",
+      error: error.message || "Failed to generate summary",
     });
   }
 });
 
 // ==============================
-// 📚 OTHER ROUTES
+// 📚 RESEARCH ROUTE
 // ==============================
-
 app.use("/api/research", require("./routes/research"));
 
 // ==============================
-// ❌ 404 HANDLER (ALWAYS LAST)
+// ❌ 404 HANDLER
 // ==============================
-
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -95,7 +109,6 @@ app.use((req, res) => {
 // ==============================
 // ❌ GLOBAL ERROR HANDLER
 // ==============================
-
 app.use((err, req, res, next) => {
   console.error("❌ Server Error:", err.stack);
 
@@ -108,7 +121,6 @@ app.use((err, req, res, next) => {
 // ==============================
 // 🚀 START SERVER
 // ==============================
-
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
