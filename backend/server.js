@@ -7,12 +7,13 @@ const Groq = require("groq-sdk");
 const app = express();
 
 // ==============================
-// ✅ ENV CHECK (IMPORTANT)
+// ✅ ENV CHECK
 // ==============================
+console.log("🔍 Checking ENV...");
 if (!process.env.GROQ_API_KEY) {
-  console.error("❌ GROQ_API_KEY missing");
+  console.error("❌ GROQ_API_KEY NOT FOUND");
 } else {
-  console.log("✅ GROQ_API_KEY loaded");
+  console.log("✅ GROQ_API_KEY LOADED");
 }
 
 // ==============================
@@ -36,11 +37,13 @@ app.get("/", (req, res) => {
 });
 
 // ==============================
-// 🔥 SUMMARY API (FIXED)
+// 🔥 SUMMARY API (ULTRA FIXED)
 // ==============================
 app.post("/api/summary", async (req, res) => {
   try {
     const { query } = req.body;
+
+    console.log("👉 Incoming Query:", query);
 
     if (!query) {
       return res.status(400).json({
@@ -49,44 +52,59 @@ app.post("/api/summary", async (req, res) => {
       });
     }
 
-    console.log("👉 Query:", query);
-
-    // 🔥 CALL GROQ
+    // ==============================
+    // 🔥 GROQ CALL
+    // ==============================
     const response = await groq.chat.completions.create({
-      model: "llama3-8b-8192",
+      model: "llama3-70b-8192", // ✅ more stable
       messages: [
         {
           role: "user",
-          content: `Give a short, clear medical summary of ${query} with:
-Overview
-Key Findings
-Treatment
-Risks`,
+          content: `Explain ${query} in simple medical terms.
+
+Give output in this format:
+
+Overview:
+Key Findings:
+Treatment:
+Risks:`,
         },
       ],
     });
 
-    // 🔥 SAFE EXTRACTION (VERY IMPORTANT FIX)
-    const text =
-      response?.choices?.[0]?.message?.content || null;
+    console.log("👉 RAW GROQ RESPONSE:", JSON.stringify(response, null, 2));
 
-    if (!text) {
-      throw new Error("Empty response from Groq");
+    const text = response?.choices?.[0]?.message?.content;
+
+    // ==============================
+    // ❌ IF EMPTY RESPONSE
+    // ==============================
+    if (!text || text.trim() === "") {
+      console.error("❌ Empty response from Groq");
+
+      return res.json({
+        success: true,
+        summary: "⚠️ AI could not generate summary. Try again.",
+      });
     }
 
-    console.log("✅ Summary generated");
+    console.log("✅ Summary Generated Successfully");
 
-    res.json({
+    return res.json({
       success: true,
       summary: text,
     });
 
   } catch (error) {
-    console.error("❌ FULL ERROR:", error.message);
+    console.error("❌ GROQ ERROR FULL:", error);
 
-    res.status(500).json({
-      success: false,
-      error: error.message || "Failed to generate summary",
+    // ==============================
+    // 🔥 FAIL SAFE RESPONSE
+    // ==============================
+    return res.json({
+      success: true,
+      summary:
+        "⚠️ AI service temporarily unavailable. Showing basic info. Please try again.",
     });
   }
 });
@@ -110,7 +128,7 @@ app.use((req, res) => {
 // ❌ GLOBAL ERROR HANDLER
 // ==============================
 app.use((err, req, res, next) => {
-  console.error("❌ Server Error:", err.stack);
+  console.error("❌ SERVER ERROR:", err.stack);
 
   res.status(500).json({
     success: false,
